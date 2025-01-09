@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS todos;
+DROP INDEX IF EXISTS idx_todos_user_id;
