@@ -1,31 +1,106 @@
 import { Hono } from "hono";
-import { Bindings, Variables } from "../types";
-import { authMiddleware } from "../middleware/auth";
-import { loginHandler } from "../handlers/user/login";
-import { listUsersHandler } from "../handlers/user/list";
-import { searchUserHandler } from "../handlers/user/search";
-import { deleteUserHandler } from "../handlers/user/delete";
-import { addUserHandler } from "../handlers/user/add";
-import { updateLastLoginHandler } from "../handlers/user/lastLogin";
+import { z } from "zod";
+import {
+  createUser,
+  signInUser,
+  searchUser,
+  updateLastLogin,
+  listUsers,
+} from "../services/auth";
 
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+const router = new Hono();
+
+// スキーマ定義
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(1),
+});
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string(),
+});
+
+const searchSchema = z.object({
+  email: z.string().email(),
+});
+
+const lastLoginSchema = z.object({
+  email: z.string().email(),
+});
 
 // ユーザー登録
-app.post("/add", addUserHandler);
+router.post("/add", async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = registerSchema.parse(body);
+    const result = await createUser(data);
+    return c.json(result, 201);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ success: false, error: error.errors }, 400);
+    }
+    return c.json({ success: false, error: "Internal Server Error" }, 500);
+  }
+});
 
-// ログインエンドポイント
-app.post("/login", loginHandler);
+// ログイン
+router.post("/login", async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = loginSchema.parse(body);
+    const result = await signInUser(data);
+    return c.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ success: false, error: error.errors }, 400);
+    }
+    return c.json({ success: false, error: "Invalid credentials" }, 401);
+  }
+});
 
-// ユーザー検索（認証不要）
-app.post("/search", searchUserHandler);
+// ユーザー一覧取得
+router.get("/list", async (c) => {
+  try {
+    const result = await listUsers();
+    return c.json(result);
+  } catch (error) {
+    return c.json({ success: false, error: "Failed to fetch users" }, 500);
+  }
+});
 
-// ユーザー一覧取得（認証必要）
-app.get("/list", authMiddleware, listUsersHandler);
+// ユーザー検索
+router.post("/search", async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = searchSchema.parse(body);
+    const result = await searchUser(data.email);
+    return c.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ success: false, error: error.errors }, 400);
+    }
+    return c.json({ success: false, error: "Search failed" }, 500);
+  }
+});
 
-// ユーザー削除
-app.delete("/:email", authMiddleware, deleteUserHandler);
+// 最終ログイン時間の更新
+router.put("/lastlogin", async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = lastLoginSchema.parse(body);
+    const result = await updateLastLogin(data.email);
+    return c.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return c.json({ success: false, error: error.errors }, 400);
+    }
+    if (error instanceof Error && error.message === "User not found") {
+      return c.json({ success: false, error: "User not found" }, 404);
+    }
+    return c.json({ success: false, error: "Update failed" }, 500);
+  }
+});
 
-// 最終ログイン時間更新
-app.put("/lastlogin", authMiddleware, updateLastLoginHandler);
-
-export default app;
+export default router;
