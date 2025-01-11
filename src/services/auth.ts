@@ -1,4 +1,10 @@
 import { Bindings } from "../types";
+import { createClient } from "@libsql/client/web";
+
+// sqlタグ付きテンプレートリテラルを定義
+function sql(strings: TemplateStringsArray, ...values: any[]) {
+  return { strings, values };
+}
 
 export interface CreateUserData {
   email: string;
@@ -35,11 +41,19 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
 
   try {
     const { apiKey } = getFirebaseConfig(c);
-    console.log("Create User - API Key:", apiKey);
 
+    // まず、ユーザーが既に存在するか確認
+    const existingUser = await searchUser(email, c);
+    if (existingUser.exists) {
+      return {
+        success: false,
+        error: "User with this email already exists",
+        code: "EMAIL_EXISTS",
+      };
+    }
+
+    // Firebaseでユーザーを作成
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`;
-    console.log("Create User - Request URL:", url);
-
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -53,11 +67,55 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
       }),
     }).then((res) => res.json());
 
-    console.log("Firebase response:", response);
-
     if (response.error) {
       console.error("Firebase error:", response.error);
-      throw new Error(response.error.message);
+      return {
+        success: false,
+        error: response.error.message,
+        code: response.error.message,
+      };
+    }
+
+    // DBにユーザーを登録
+    try {
+      const client = createClient({
+        url: c.env.TURSO_DB_URL,
+        authToken: c.env.TURSO_DB_AUTH_TOKEN,
+      });
+
+      console.log("DB Config:", {
+        url: c.env.TURSO_DB_URL,
+        hasAuthToken: !!c.env.TURSO_DB_AUTH_TOKEN,
+      });
+
+      await client.execute(
+        `
+        INSERT INTO users (
+          firebase_uid,
+          name,
+          email,
+          password,
+          created_at,
+          updated_at
+        ) VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          datetime('now'),
+          datetime('now')
+        )
+      `,
+        [response.localId, name, email, password]
+      );
+    } catch (dbError) {
+      console.error("DB Error:", dbError);
+      return {
+        success: false,
+        error: "Failed to save user to database",
+        code: "DB_ERROR",
+        details: dbError instanceof Error ? dbError.message : String(dbError),
+      };
     }
 
     return {
@@ -70,7 +128,11 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
     };
   } catch (error) {
     console.error("Create user error:", error);
-    throw error;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Internal Server Error",
+      code: "INTERNAL_ERROR",
+    };
   }
 }
 
@@ -149,11 +211,8 @@ export async function listUsers(c: { env: Bindings }) {
 export async function searchUser(email: string, c: { env: Bindings }) {
   try {
     const { apiKey } = getFirebaseConfig(c);
-    console.log("Search User - API Key:", apiKey);
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`;
-    console.log("Search User - Request URL:", url);
-
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -162,11 +221,22 @@ export async function searchUser(email: string, c: { env: Bindings }) {
       }),
     }).then((res) => res.json());
 
-    console.log("Firebase response:", response);
+    // USER_NOT_FOUNDの場合は正常なレスポンスとして扱う
+    if (response.error && response.error.message === "USER_NOT_FOUND") {
+      return {
+        success: true,
+        exists: false,
+        message: "User not found",
+      };
+    }
 
     if (response.error) {
       console.error("Search user error:", response.error);
-      throw new Error(response.error.message);
+      return {
+        success: false,
+        error: response.error.message,
+        code: response.error.message,
+      };
     }
 
     return {
@@ -179,7 +249,11 @@ export async function searchUser(email: string, c: { env: Bindings }) {
     };
   } catch (error) {
     console.error("Search user error:", error);
-    throw error;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Internal Server Error",
+      code: "INTERNAL_ERROR",
+    };
   }
 }
 
