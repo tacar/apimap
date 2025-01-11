@@ -7,8 +7,9 @@ import {
   updateLastLogin,
   listUsers,
 } from "../services/auth";
+import { Bindings } from "../types";
 
-const router = new Hono();
+const router = new Hono<{ Bindings: Bindings }>();
 
 // スキーマ定義
 const registerSchema = z.object({
@@ -107,6 +108,61 @@ router.put("/lastlogin", async (c) => {
       return c.json({ success: false, error: "User not found" }, 404);
     }
     return c.json({ success: false, error: "Update failed" }, 500);
+  }
+});
+
+// Gmailログイン
+router.post("/gmail-login", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { idToken } = body;
+
+    if (!idToken) {
+      return c.json({ success: false, error: "IDトークンが必要です" }, 400);
+    }
+
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=${c.env.FIREBASE_API_KEY}`;
+    const response = (await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        postBody: `id_token=${idToken}&providerId=google.com`,
+        requestUri: "http://localhost",
+        returnIdpCredential: true,
+        returnSecureToken: true,
+      }),
+    }).then((res) => res.json())) as {
+      error?: { message: string };
+      idToken?: string;
+      email?: string;
+      displayName?: string;
+      photoUrl?: string;
+    };
+
+    if (response.error) {
+      return c.json({ success: false, error: response.error.message }, 400);
+    }
+
+    return c.json({
+      success: true,
+      token: response.idToken,
+      user: {
+        email: response.email,
+        name: response.displayName,
+        picture: response.photoUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Gmail login error:", error);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      500
+    );
   }
 });
 

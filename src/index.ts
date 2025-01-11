@@ -379,6 +379,86 @@ const openApiSchema = {
         },
       },
     },
+    "/api/users/gmail-login": {
+      post: {
+        summary: "Gmail account login",
+        tags: ["Users"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                properties: {
+                  idToken: {
+                    type: "string",
+                    description: "Google認証から取得したIDトークン",
+                  },
+                },
+                required: ["idToken"],
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Login successful",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: {
+                      type: "boolean",
+                      example: true,
+                    },
+                    token: {
+                      type: "string",
+                      description: "Firebase認証トークン",
+                    },
+                    user: {
+                      type: "object",
+                      properties: {
+                        email: {
+                          type: "string",
+                          format: "email",
+                        },
+                        name: {
+                          type: "string",
+                        },
+                        picture: {
+                          type: "string",
+                          format: "uri",
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid request",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: {
+                      type: "boolean",
+                      example: false,
+                    },
+                    error: {
+                      type: "string",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
     "/api/todos": {
       get: {
         summary: "Get all todos",
