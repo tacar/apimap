@@ -38,10 +38,10 @@ function getFirebaseConfig(c: { env: Bindings }) {
 
 export async function createUser(data: CreateUserData, c: { env: Bindings }) {
   const { email, password, name } = data;
+  let client;
+  let userId;
 
   try {
-    const { apiKey } = getFirebaseConfig(c);
-
     // まず、ユーザーが既に存在するか確認
     const existingUser = await searchUser(email, c);
     if (existingUser.exists) {
@@ -52,7 +52,46 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
       };
     }
 
-    // Firebaseでユーザーを作成
+    // 1. DBにユーザーを登録
+    try {
+      client = createClient({
+        url: c.env.TURSO_DB_URL,
+        authToken: c.env.TURSO_DB_AUTH_TOKEN,
+      });
+
+      console.log("DB Connection Config:", {
+        url: c.env.TURSO_DB_URL,
+        hasAuthToken: !!c.env.TURSO_DB_AUTH_TOKEN,
+      });
+
+      const dbResult = await client.execute(
+        `
+        INSERT INTO users (
+          name,
+          email,
+          password,
+          created_at,
+          updated_at
+        ) VALUES (
+          ?,
+          ?,
+          ?,
+          datetime('now'),
+          datetime('now')
+        ) RETURNING id
+        `,
+        [name, email, password]
+      );
+
+      console.log("DB Insert Result:", dbResult);
+      userId = dbResult.rows[0].id;
+    } catch (dbError) {
+      console.error("DB Connection/Insert Error:", dbError);
+      throw dbError;
+    }
+
+    // 2. Firebaseでユーザーを作成
+    const { apiKey } = getFirebaseConfig(c);
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`;
     const response = await fetch(url, {
       method: "POST",
@@ -68,7 +107,8 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
     }).then((res) => res.json());
 
     if (response.error) {
-      console.error("Firebase error:", response.error);
+      // Firebaseでエラーが発生した場合、DBから削除
+      await client.execute("DELETE FROM users WHERE id = ?", [userId]);
       return {
         success: false,
         error: response.error.message,
@@ -76,52 +116,21 @@ export async function createUser(data: CreateUserData, c: { env: Bindings }) {
       };
     }
 
-    // DBにユーザーを登録
-    try {
-      const client = createClient({
-        url: c.env.TURSO_DB_URL,
-        authToken: c.env.TURSO_DB_AUTH_TOKEN,
-      });
-
-      console.log("DB Config:", {
-        url: c.env.TURSO_DB_URL,
-        hasAuthToken: !!c.env.TURSO_DB_AUTH_TOKEN,
-      });
-
-      await client.execute(
-        `
-        INSERT INTO users (
-          firebase_uid,
-          name,
-          email,
-          password,
-          created_at,
-          updated_at
-        ) VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          datetime('now'),
-          datetime('now')
-        )
+    // 3. DBのユーザーレコードを更新してfirebase_uidを保存
+    await client.execute(
+      `
+      UPDATE users
+      SET firebase_uid = ?
+      WHERE id = ?
       `,
-        [response.localId, name, email, password]
-      );
-    } catch (dbError) {
-      console.error("DB Error:", dbError);
-      return {
-        success: false,
-        error: "Failed to save user to database",
-        code: "DB_ERROR",
-        details: dbError instanceof Error ? dbError.message : String(dbError),
-      };
-    }
+      [response.localId, userId]
+    );
 
     return {
       success: true,
       data: {
-        id: response.localId,
+        id: userId,
+        firebase_id: response.localId,
         email: response.email,
         name: response.displayName || name,
       },

@@ -8,13 +8,11 @@ main = "src/index.ts"
 DEEPSEEK_API_URL = "https://api.deepseek.com"
 ALLOWED_ORIGINS = "http://localhost:3000,https://yourdomain.com"
 NODE_ENV = "production"
-TURSO_DB_URL = "libsql://apimap.turso.io"
+TURSO_DB_URL = "libsql://apimap-tacar.turso.io"
 FIREBASE_AUTH_DOMAIN = "amap-ed2dd.firebaseapp.com"
 FIREBASE_STORAGE_BUCKET = "amap-ed2dd.appspot.com"
-FIREBASE_API_KEY = "AIzaSyC4uUXtnYqPvlOmFvh0Uv22PETxyDnMXjA"
 
 # [ai]
-# binding = "AI"
 
 [dev]
 port = 8787
