@@ -29,9 +29,20 @@ export const QuerySchema = z.object({
   offset: z.string().regex(/^\d+$/).transform(Number).optional(),
 });
 
-export type Bindings = {
-  DB: D1Database;
-};
+export interface Bindings {
+  FIREBASE_API_KEY: string;
+  FIREBASE_AUTH_DOMAIN: string;
+  FIREBASE_STORAGE_BUCKET: string;
+  DEEPSEEK_API_URL: string;
+  ALLOWED_ORIGINS: string;
+  NODE_ENV: string;
+  TURSO_DB_URL: string;
+  R2: R2Bucket;
+}
+
+export interface Variables {
+  // 必要に応じて追加
+}
 
 export type Context = HonoContext<{ Bindings: Bindings }>;
 

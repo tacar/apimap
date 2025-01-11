@@ -35,13 +35,20 @@ router.post("/add", async (c) => {
   try {
     const body = await c.req.json();
     const data = registerSchema.parse(body);
-    const result = await createUser(data);
+    const result = await createUser(data, c);
     return c.json(result, 201);
   } catch (error) {
+    console.error("Register error:", error);
     if (error instanceof z.ZodError) {
       return c.json({ success: false, error: error.errors }, 400);
     }
-    return c.json({ success: false, error: "Internal Server Error" }, 500);
+    return c.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Internal Server Error",
+      },
+      500
+    );
   }
 });
 
@@ -50,7 +57,7 @@ router.post("/login", async (c) => {
   try {
     const body = await c.req.json();
     const data = loginSchema.parse(body);
-    const result = await signInUser(data);
+    const result = await signInUser(data, c);
     return c.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -63,7 +70,7 @@ router.post("/login", async (c) => {
 // ユーザー一覧取得
 router.get("/list", async (c) => {
   try {
-    const result = await listUsers();
+    const result = await listUsers(c);
     return c.json(result);
   } catch (error) {
     return c.json({ success: false, error: "Failed to fetch users" }, 500);
@@ -75,7 +82,7 @@ router.post("/search", async (c) => {
   try {
     const body = await c.req.json();
     const data = searchSchema.parse(body);
-    const result = await searchUser(data.email);
+    const result = await searchUser(data.email, c);
     return c.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -90,7 +97,7 @@ router.put("/lastlogin", async (c) => {
   try {
     const body = await c.req.json();
     const data = lastLoginSchema.parse(body);
-    const result = await updateLastLogin(data.email);
+    const result = await updateLastLogin(data.email, c);
     return c.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {

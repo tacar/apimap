@@ -1,32 +1,25 @@
-name = "apiwalk"
+name = "apimap"
 compatibility_date = "2024-12-31"
 compatibility_flags = [ "nodejs_compat" ]
 main = "src/index.ts"
 
 
 [vars]
-# MY_VAR = "my-variable"
-FIREBASE_PROJECT_ID="walk-f8378"
-FIREBASE_CLIENT_EMAIL = "firebase-adminsdk-8lxpb@walk-f8378.iam.gserviceaccount.com"
-FIREBASE_PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----\n..."
 DEEPSEEK_API_URL = "https://api.deepseek.com"
 ALLOWED_ORIGINS = "http://localhost:3000,https://yourdomain.com"
 NODE_ENV = "production"
-
-
-[[d1_databases]]
-binding = "DB"
-database_name = "apiwalk"
-database_id = "6f7ea5d9-3676-4c0f-a3c0-e37d9858c632"
-
+TURSO_DB_URL = "libsql://apimap.turso.io"
+FIREBASE_AUTH_DOMAIN = "amap-ed2dd.firebaseapp.com"
+FIREBASE_STORAGE_BUCKET = "amap-ed2dd.appspot.com"
+FIREBASE_API_KEY = "AIzaSyC4uUXtnYqPvlOmFvh0Uv22PETxyDnMXjA"
 
 # [ai]
 # binding = "AI"
 
 [dev]
-port = 8010
+port = 8787
 
 [[r2_buckets]]
 binding = "R2"
-bucket_name = "apiwalk"
-preview_bucket_name = "apiwalk-dev"  # 開発環境用
+bucket_name = "apimap"
+preview_bucket_name = "apimap-dev"  # 開発環境用
